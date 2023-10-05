@@ -9,6 +9,7 @@ package com.mycompany.computacaoparalelasistemasdistribuidos.AERicart;
  * @author Eric Castro
  */
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,6 +31,7 @@ public class Processo implements Runnable {
         this.id = id;
         this.secaoCritica = secaoCritica;
         this.requisicoesPendentes = new boolean[4];
+        this.timestampsPendentes = new int[4]; // Inicialize o array timestampsPendentes
     }
 
     @Override
@@ -77,11 +79,13 @@ public class Processo implements Runnable {
                 if (i != id) {
                     requisicoesPendentes[i] = true;
                     timestampsPendentes[i] = timestamp;
+                    enviarSolicitacao(i, timestamp);
                 }
             }
 
             while (!todasRespostasRecebidas()) {
-                condicao.await();
+                condicao.await(5, TimeUnit.SECONDS);
+                
             }
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -90,23 +94,28 @@ public class Processo implements Runnable {
         }
     }
 
-
     private void liberarAcesso() {
-        // Implementear a lógica de liberação de acesso à seção crítica (Ricart e Agrawala).
-        // Esta parte do código não está implementada na resposta, pois é específica do algoritmo.
+        lock.lock();
+        try {
+            querAcesso = false;
+
+            for (int i = 0; i < requisicoesPendentes.length; i++) {
+                if (i != id && requisicoesPendentes[i]) {
+                    enviarLiberacao(i);
+                    requisicoesPendentes[i] = false;
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public static void main(String[] args) {
-        SecaoCritica secaoCritica = new SecaoCritica();
+    private void enviarSolicitacao(int processo, int meuTimestamp) {
+        secaoCritica.entrar();
+    }
 
-        // Crie os processos
-        Processo processo = new Processo(4, secaoCritica);
-
-        // Crie uma thread para executar o processo
-        Thread threadProcesso = new Thread(processo);
-
-        // Inicie a thread do processo
-        threadProcesso.start();
+    private void enviarLiberacao(int processo) {
+        secaoCritica.sair();
     }
 
     private boolean todasRespostasRecebidas() {
